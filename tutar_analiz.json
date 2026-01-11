@@ -1,0 +1,77 @@
+{
+  "eslesti": 68,
+  "tutar_farki": 328,
+  "kayitsiz": 45,
+  "detay": [
+    {
+      "no": "BEE2025000002020",
+      "fatura_tutar": 16440.0,
+      "defter_tutar": 16440.0,
+      "fark": 0.0,
+      "status": "OK"
+    },
+    {
+      "no": "UBF2025000004316",
+      "fatura_tutar": 6199.8,
+      "defter_tutar": 6199.8,
+      "fark": 0.0,
+      "status": "OK"
+    },
+    {
+      "no": "UBF2025000004361",
+      "fatura_tutar": 3600.0,
+      "defter_tutar": 3600.0,
+      "fark": 0.0,
+      "status": "OK"
+    },
+    {
+      "no": "KRK2025000003137",
+      "fatura_tutar": 3840.0,
+      "defter_tutar": 3840.0,
+      "fark": 0.0,
+      "status": "OK"
+    },
+    {
+      "no": "AOF2025000001976",
+      "fatura_tutar": 3400.0,
+      "defter_tutar": 3400.0,
+      "fark": 0.0,
+      "status": "OK"
+    },
+    {
+      "no": "YPE2025000002480",
+      "fatura_tutar": 5000.0,
+      "defter_tutar": 5000.01,
+      "fark": 0.010000000000218279,
+      "status": "OK"
+    },
+    {
+      "no": "MST2025000000112",
+      "fatura_tutar": 9600.0,
+      "defter_tutar": 9600.0,
+      "fark": 0.0,
+      "status": "OK"
+    },
+    {
+      "no": "YGE2025000003476",
+      "fatura_tutar": 4200.0,
+      "defter_tutar": 4200.0,
+      "fark": 0.0,
+      "status": "OK"
+    },
+    {
+      "no": "KIF2025000000919",
+      "fatura_tutar": 37380.0,
+      "defter_tutar": 37380.0,
+      "fark": 0.0,
+      "status": "OK"
+    },
+    {
+      "no": "ADA2025000000532",
+      "fatura_tutar": 375277.5,
+      "defter_tutar": 375277.5,
+      "fark": 0.0,
+      "status": "OK"
+    }
+  ]
+}

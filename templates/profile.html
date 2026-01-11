@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil - e-Mutabakat Pro</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1 class="logo">e-Mutabakat Pro</h1>
+                    <span class="subtitle">Profil Ayarları</span>
+                </div>
+
+                <div class="header-right">
+                    <div class="version-badge">v3.0 Web</div>
+
+                    {% if current_user.is_authenticated %}
+                    <div class="user-section">
+                        <a href="/" class="admin-link">🏠 Ana Sayfa</a>
+                        <a href="/profile" class="user-info" style="background: rgba(255,255,255,0.3);">👤 {{
+                            current_user.username }}</a>
+                        <a href="/logout" class="logout-btn">Çıkış</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- Profile Card -->
+            <section class="card profile-section">
+                <div class="card-header">
+                    <h2>👤 Profil Bilgileri</h2>
+                    <a href="/" class="btn btn-small" style="text-decoration: none;">← Ana Sayfa</a>
+                </div>
+
+                <div class="card-body">
+                    <div class="profile-info">
+                        <div class="profile-avatar">
+                            👤
+                        </div>
+                        <div class="profile-details">
+                            <h3>{{ current_user.username }}</h3>
+                            <p>{{ current_user.role|capitalize }}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Password Change Card -->
+            <section class="card password-section">
+                <div class="card-header">
+                    <h2>🔐 Şifre Değiştir</h2>
+                </div>
+
+                <div class="card-body">
+                    {% if error is defined and error %}
+                    <div class="error-message">
+                        <span>⚠️</span>
+                        <span>{{ error }}</span>
+                    </div>
+                    {% endif %}
+
+                    {% if success is defined and success %}
+                    <div class="success-message">
+                        <span>✅</span>
+                        <span>{{ success }}</span>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="/change-password">
+                        <div class="form-group">
+                            <label for="current_password">Mevcut Şifre</label>
+                            <input type="password" id="current_password" name="current_password"
+                                placeholder="Mevcut şifrenizi girin" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new_password">Yeni Şifre</label>
+                            <input type="password" id="new_password" name="new_password"
+                                placeholder="Yeni şifre (en az 4 karakter)" required minlength="4">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirm_password">Yeni Şifre (Tekrar)</label>
+                            <input type="password" id="confirm_password" name="confirm_password"
+                                placeholder="Yeni şifrenizi tekrar girin" required minlength="4">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            🔐 Şifreyi Değiştir
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>Designed by AI Agent • v3.0 Web Edition</p>
+        </footer>
+    </div>
+
+    <style>
+        .profile-info {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1rem 0;
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #2E74B5 0%, #4a9fd8 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            color: white;
+            box-shadow: 0 4px 15px rgba(46, 116, 181, 0.3);
+        }
+
+        .profile-details h3 {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .profile-details p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .password-section .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .password-section .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .password-section .form-group input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: #f8fafc;
+            border: 1px solid rgba(46, 116, 181, 0.2);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .password-section .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(46, 116, 181, 0.15);
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #dc2626;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .success-message {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #16a34a;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</body>
+
+</html>

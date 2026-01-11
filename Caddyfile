@@ -1,0 +1,94 @@
+# ================================================================
+# e-Mutabakat Pro - Caddyfile
+# Kurumsal Üretim Ortamı - HTTPS Zorunlu
+# ================================================================
+#
+# KURULUM:
+# 1. https://caddyserver.com/download adresinden Caddy indirin
+# 2. Bu dosyayı Caddy dizinine kopyalayın
+# 3. Aşağıdaki domain'i sunucu IP/domain ile değiştirin
+# 4. "caddy run" veya "caddy start" ile başlatın
+#
+# ================================================================
+
+# ================================================================
+# ANA DOMAIN - BU KISMI DEĞİŞTİRİN!
+# ================================================================
+# Gerçek domain: emutabakat.sirketiniz.com
+# Sunucu IP: 192.168.1.100
+# Test: localhost
+
+emutabakat.local {
+
+    # ============================================================
+    # REVERSE PROXY - Flask'a yönlendir
+    # ============================================================
+    reverse_proxy localhost:5000 {
+        # Gerçek IP ve protokol bilgisini ilet
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        
+        # Sağlık kontrolü
+        health_uri /login
+        health_interval 30s
+        health_timeout 5s
+    }
+
+    # ============================================================
+    # GÜVENLİK BAŞLIKLARI
+    # ============================================================
+    header {
+        # Clickjacking koruması
+        X-Frame-Options "DENY"
+        
+        # MIME sniffing koruması
+        X-Content-Type-Options "nosniff"
+        
+        # XSS koruması
+        X-XSS-Protection "1; mode=block"
+        
+        # HSTS - Zorunlu HTTPS (1 yıl)
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        
+        # Referrer politikası
+        Referrer-Policy "strict-origin-when-cross-origin"
+        
+        # İçerik güvenlik politikası
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'none';"
+        
+        # Server bilgisini gizle
+        -Server
+    }
+
+    # ============================================================
+    # SIKIŞIRMA
+    # ============================================================
+    encode gzip zstd
+
+    # ============================================================
+    # LOGLAMA
+    # ============================================================
+    log {
+        output file logs/caddy_access.log {
+            roll_size 10mb
+            roll_keep 5
+            roll_keep_for 168h
+        }
+        format json
+    }
+
+    # ============================================================
+    # DOSYA YÜKLEME LİMİTİ
+    # ============================================================
+    request_body {
+        max_size 500MB
+    }
+}
+
+# ================================================================
+# HTTP → HTTPS YÖNLENDİRME
+# ================================================================
+http://emutabakat.local {
+    redir https://emutabakat.local{uri} permanent
+}

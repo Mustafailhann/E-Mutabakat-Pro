@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>e-Mutabakat Pro - Fatura ve Defter Analiz Uzmanı</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1 class="logo">e-Mutabakat Pro</h1>
+                    <span class="subtitle">Fatura • Defter • KDV Analizi</span>
+                </div>
+
+                <div class="header-right">
+                    <div class="version-badge">v3.0 Web</div>
+
+                    {% if current_user.is_authenticated %}
+                    <div class="user-section">
+                        {% if current_user.is_admin() %}
+                        <a href="/admin" class="admin-link">⚙️ Admin</a>
+                        {% endif %}
+                        <a href="/profile" class="user-info">👤 {{ current_user.username }}</a>
+                        <a href="/logout" class="logout-btn">Çıkış</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- File Upload Section -->
+            <section class="card upload-section">
+                <div class="card-header">
+                    <h2>📁 Fatura Dosyaları</h2>
+                    <span class="badge" id="file-count">0 dosya</span>
+                </div>
+
+                <div class="card-body">
+                    <div class="upload-zone" id="upload-zone">
+                        <div class="upload-icon">📤</div>
+                        <p>Dosyaları buraya sürükleyin veya</p>
+
+                        <label class="upload-btn">
+                            <input type="file" id="file-input" multiple accept=".zip,.rar,.xml,.pdf">
+                            Dosya Seç
+                        </label>
+
+                        <p class="upload-hint">
+                            ZIP, RAR, XML, PDF formatları desteklenir
+                        </p>
+                    </div>
+
+                    <div class="file-list" id="file-list"></div>
+
+                    <div class="file-actions" id="file-actions" style="display: none;">
+                        <button class="btn btn-danger" onclick="clearFiles()">
+                            🗑️ Listeyi Temizle
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KDV Actions -->
+            <section class="card actions-section">
+                <div class="card-header">
+                    <h2>📤 KDV İade İşlemleri</h2>
+                </div>
+
+                <div class="card-body">
+                    <div class="action-grid">
+
+                        <button class="action-card" onclick="generateKdvExcel()">
+                            <div class="action-icon">📊</div>
+                            <div class="action-content">
+                                <h3>KDV İade Listesi</h3>
+                                <p>GİB formatında Excel dosyası</p>
+                            </div>
+                        </button>
+
+                        <button class="action-card" onclick="showVknModal('kdv')">
+                            <div class="action-icon">🌐</div>
+                            <div class="action-content">
+                                <h3>KDV Liste (Web)</h3>
+                                <p>İnteraktif düzenleyici</p>
+                            </div>
+                        </button>
+
+                        <button class="action-card" onclick="showVknModal('satis')">
+                            <div class="action-icon">💰</div>
+                            <div class="action-content">
+                                <h3>Satış Fatura Listesi</h3>
+                                <p>Web tabanlı görüntüleme</p>
+                            </div>
+                        </button>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Info -->
+            <section class="card info-section">
+                <div class="card-header">
+                    <h2>ℹ️ Bilgi</h2>
+                </div>
+
+                <div class="card-body">
+                    <ul class="info-list">
+                        <li>
+                            <strong>KDV İade Listesi:</strong>
+                            GİB formatında İndirilecek KDV Excel çıktısı
+                        </li>
+                        <li>
+                            <strong>KDV Liste (Web):</strong>
+                            Faturaları tarayıcıda düzenleme
+                        </li>
+                        <li>
+                            <strong>Satış Fatura Listesi:</strong>
+                            VKN bazlı satış faturası görüntüleme
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Logs -->
+            <section class="card log-section">
+                <div class="card-header">
+                    <h2>📋 İşlem Günlüğü</h2>
+                    <button class="btn btn-small" onclick="clearLogs()">Temizle</button>
+                </div>
+
+                <div class="card-body">
+                    <div class="log-container" id="log-container">
+                        <div class="log-entry">
+                            ✨ e-Mutabakat Pro Web'e hoş geldiniz!
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>Designed by AI Agent • v3.0 Web Edition</p>
+        </footer>
+    </div>
+
+    <!-- VKN Modal -->
+    <div class="modal" id="vkn-modal">
+        <div class="modal-overlay" onclick="closeVknModal()"></div>
+
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Mükellef VKN</h3>
+                <button class="modal-close" onclick="closeVknModal()">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <p id="modal-description">Kendi VKN / TCKN'nizi girin:</p>
+                <input type="text" id="vkn-input" placeholder="VKN veya TCKN" maxlength="11">
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeVknModal()">İptal</button>
+                <button class="btn btn-primary" onclick="submitVkn()">Devam</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>İşleniyor...</p>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>

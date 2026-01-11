@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - e-Mutabakat Pro</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Stats Cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            position: relative;
+            background: linear-gradient(135deg, rgba(46, 116, 181, 0.15) 0%, rgba(26, 90, 154, 0.05) 100%);
+            border: 1px solid rgba(46, 116, 181, 0.3);
+            border-radius: var(--border-radius);
+            padding: 2rem 1.5rem;
+            text-align: center;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(46, 116, 181, 0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 12px 40px rgba(46, 116, 181, 0.25);
+            border-color: var(--primary);
+            background: linear-gradient(135deg, rgba(46, 116, 181, 0.25) 0%, rgba(26, 90, 154, 0.15) 100%);
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+        }
+
+        .stat-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+            transition: transform 0.4s ease;
+        }
+
+        .stat-card:hover .stat-icon {
+            transform: scale(1.15) rotate(5deg);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #4a8fd4 0%, #2E74B5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover .stat-value {
+            transform: scale(1.1);
+        }
+
+        .stat-label {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        /* Admin Grid */
+        .admin-grid {
+            display: grid;
+            grid-template-columns: 1fr 420px;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1100px) {
+            .admin-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Users Table */
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .users-table th,
+        .users-table td {
+            padding: 1.25rem 1.5rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .users-table th {
+            background: linear-gradient(135deg, rgba(46, 116, 181, 0.1) 0%, rgba(26, 90, 154, 0.05) 100%);
+            font-weight: 600;
+            color: var(--primary-light);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .users-table tbody tr {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .users-table tbody tr::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 3px;
+            background: var(--primary);
+            transform: scaleY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .users-table tbody tr:hover {
+            background: rgba(46, 116, 181, 0.08);
+            transform: translateX(3px);
+        }
+
+        .users-table tbody tr:hover::before {
+            transform: scaleY(1);
+        }
+
+        /* Role Badge */
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+
+        .role-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .role-badge.admin {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(220, 53, 69, 0.1) 100%);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        .role-badge.admin::before {
+            background: #ff6b6b;
+            box-shadow: 0 0 8px rgba(255, 107, 107, 0.6);
+        }
+
+        .role-badge.user {
+            background: linear-gradient(135deg, rgba(107, 207, 127, 0.15) 0%, rgba(40, 167, 69, 0.1) 100%);
+            color: #6bcf7f;
+            border: 1px solid rgba(107, 207, 127, 0.3);
+        }
+
+        .role-badge.user::before {
+            background: #6bcf7f;
+            box-shadow: 0 0 8px rgba(107, 207, 127, 0.6);
+        }
+
+        /* Action Button */
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.75rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+        }
+
+        .action-btn.delete:hover {
+            background: rgba(220, 53, 69, 0.15);
+            color: #ff6b6b;
+            transform: scale(1.2) rotate(10deg);
+        }
+
+        /* Form Styling */
+        .form-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(46, 116, 181, 0.08);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(46, 116, 181, 0.2);
+        }
+
+        .form-group select {
+            cursor: pointer;
+        }
+
+        /* Submit Button */
+        .submit-btn {
+            width: 100%;
+            padding: 1.25rem;
+            background: linear-gradient(135deg, #2E74B5 0%, #1a5a9a 100%);
+            border: none;
+            border-radius: var(--border-radius-sm);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .submit-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(46, 116, 181, 0.4);
+        }
+
+        .submit-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .submit-btn:active {
+            transform: translateY(-1px);
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 1.25rem 1.5rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: slideDown 0.4s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, rgba(107, 207, 127, 0.15) 0%, rgba(40, 167, 69, 0.1) 100%);
+            border: 1px solid rgba(107, 207, 127, 0.3);
+            color: #6bcf7f;
+        }
+
+        .alert-error {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.15) 0%, rgba(220, 53, 69, 0.1) 100%);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            color: #ff6b6b;
+        }
+
+        .no-users {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        /* Enhanced Card */
+        .card {
+            position: relative;
+            overflow: visible;
+        }
+
+        .card::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(135deg, rgba(46, 116, 181, 0.2), rgba(26, 90, 154, 0.1));
+            border-radius: var(--border-radius);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            z-index: -1;
+        }
+
+        .card:hover::after {
+            opacity: 1;
+        }
+
+        /* Back Link */
+        .back-link {
+            color: var(--primary-light);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius-sm);
+        }
+
+        .back-link:hover {
+            background: rgba(46, 116, 181, 0.15);
+            transform: translateX(-3px);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1 class="logo">e-Mutabakat Pro</h1>
+                    <span class="subtitle">Admin Panel</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="color: var(--text-secondary);">
+                        👤 {{ current_user.username }}
+                    </span>
+                    <a href="/" class="back-link">← Ana Sayfa</a>
+                    <a href="/logout" class="back-link" style="color: var(--danger);">Çıkış</a>
+                </div>
+            </div>
+        </header>
+
+        <div class="admin-container">
+
+            <!-- Stats -->
+            {% set user_list = users if users is defined else [] %}
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-value">{{ user_list|length }}</div>
+                    <div class="stat-label">Toplam Kullanıcı</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚙️</div>
+                    <div class="stat-value">
+                        {{ user_list | selectattr('role', 'equalto', 'admin') | list | length }}
+                    </div>
+                    <div class="stat-label">Admin</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">👤</div>
+                    <div class="stat-value">
+                        {{ user_list | selectattr('role', 'equalto', 'user') | list | length }}
+                    </div>
+                    <div class="stat-label">Kullanıcı</div>
+                </div>
+            </div>
+
+            {% if message is defined and message %}
+            <div class="alert alert-success">
+                <span>✅</span>
+                <span>{{ message }}</span>
+            </div>
+            {% endif %}
+
+            {% if error is defined and error %}
+            <div class="alert alert-error">
+                <span>⚠️</span>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <div class="admin-grid">
+
+                <!-- Users -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>👥 Kullanıcı Listesi</h2>
+                    </div>
+
+                    <div class="card-body" style="padding:0;">
+                        {% if user_list %}
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Kullanıcı</th>
+                                    <th>Rol</th>
+                                    <th>Oluşturulma</th>
+                                    <th>Son Giriş</th>
+                                    <th>İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in user_list %}
+                                <tr>
+                                    <td><strong>{{ user.username }}</strong></td>
+                                    <td>
+                                        <span class="role-badge {{ user.role }}">
+                                            {{ user.role|upper }}
+                                        </span>
+                                    </td>
+                                    <td>{{ user.created_at|default('-', true) }}</td>
+                                    <td>{{ user.last_login|default('Hiç', true) }}</td>
+                                    <td>
+                                        {% if user.id != current_user.id %}
+                                        <form method="POST" action="/admin/delete/{{ user.id }}" style="display:inline;"
+                                            onsubmit="return confirm('Bu kullanıcı silinsin mi?');">
+                                            {% if csrf_token is defined %}
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            {% endif %}
+                                            <button type="submit" class="action-btn delete">🗑️</button>
+                                        </form>
+                                        {% else %}
+                                        —
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div class="no-users">Kullanıcı bulunamadı</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Add User -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>➕ Yeni Kullanıcı</h2>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="/admin/add-user">
+                            {% if csrf_token is defined %}
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            {% endif %}
+
+                            <div class="form-group">
+                                <label>Kullanıcı Adı</label>
+                                <input type="text" name="username" required pattern="[a-zA-Z0-9_]+"
+                                    placeholder="Kullanıcı adı girin">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Şifre</label>
+                                <input type="password" name="password" required minlength="4"
+                                    placeholder="En az 4 karakter">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Rol</label>
+                                <select name="role">
+                                    <option value="user">Kullanıcı</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="submit-btn">Kullanıcı Ekle</button>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

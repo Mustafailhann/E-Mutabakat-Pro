@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giriş - e-Mutabakat Pro</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 50%, #ffffff 100%);
+            padding: 1rem;
+        }
+
+        .login-card {
+            background: #ffffff;
+            border: 1px solid rgba(46, 116, 181, 0.2);
+            border-radius: var(--border-radius);
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 40px rgba(46, 116, 181, 0.15);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-logo {
+            font-size: 2rem;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-subtitle {
+            color: #475569;
+            font-size: 0.9rem;
+        }
+
+        .login-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: #f8fafc;
+            border: 1px solid rgba(46, 116, 181, 0.2);
+            border-radius: var(--border-radius-sm);
+            color: #1e293b;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(46, 116, 181, 0.2);
+        }
+
+        .form-group input::placeholder {
+            color: #94a3b8;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .remember-me input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+        }
+
+        .remember-me label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--gradient-primary);
+            border: none;
+            border-radius: var(--border-radius-sm);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: rgba(220, 53, 69, 0.15);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            color: #ff6b6b;
+            padding: 0.75rem 1rem;
+            border-radius: var(--border-radius-sm);
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        .divider span {
+            padding: 0 1rem;
+        }
+
+        .register-section {
+            text-align: center;
+        }
+
+        .register-info {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .register-btn {
+            width: 100%;
+            padding: 0.875rem;
+            background: transparent;
+            border: 2px solid var(--primary);
+            border-radius: var(--border-radius-sm);
+            color: var(--primary);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .register-btn:hover {
+            background: rgba(46, 116, 181, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .employee-notice {
+            margin-top: 0.75rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Register Form Styles */
+        .register-form-container {
+            display: none;
+        }
+
+        .register-form-container.active {
+            display: block;
+        }
+
+        .login-form-container {
+            display: block;
+        }
+
+        .login-form-container.hidden {
+            display: none;
+        }
+
+        .back-to-login {
+            display: block;
+            margin-top: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .back-to-login:hover {
+            color: var(--primary);
+        }
+
+        .success-message {
+            background: rgba(40, 167, 69, 0.15);
+            border: 1px solid rgba(40, 167, 69, 0.3);
+            color: #51cf66;
+            padding: 0.75rem 1rem;
+            border-radius: var(--border-radius-sm);
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-card">
+
+            <div class="login-header">
+                <div class="login-icon" id="header-icon">🔐</div>
+                <h1 class="login-logo">e-Mutabakat Pro</h1>
+                <p class="login-subtitle" id="header-subtitle">Hesabınıza giriş yapın</p>
+            </div>
+
+            {% if error is defined and error %}
+            <div class="error-message">
+                <span>⚠️</span>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            {% if success is defined and success %}
+            <div class="success-message">
+                <span>✅</span>
+                <span>{{ success }}</span>
+            </div>
+            {% endif %}
+
+            <!-- Login Form -->
+            <div class="login-form-container" id="login-form-container">
+                <form method="POST" action="/login" novalidate>
+                    {% if csrf_token is defined %}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label for="username">Kullanıcı Adı</label>
+                        <input type="text" id="username" name="username" placeholder="Kullanıcı adınızı girin" required
+                            autofocus autocomplete="username">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Şifre</label>
+                        <input type="password" id="password" name="password" placeholder="Şifrenizi girin" required
+                            autocomplete="current-password">
+                    </div>
+
+                    <div class="remember-me">
+                        <input type="checkbox" id="remember" name="remember">
+                        <label for="remember">Beni hatırla</label>
+                    </div>
+
+                    <button type="submit" class="login-btn">Giriş Yap</button>
+                </form>
+
+                <!-- Kayıt Ol Bölümü -->
+                <div class="divider"><span>veya</span></div>
+
+                <div class="register-section">
+                    <p class="register-info">İlk defa giriş yapıyorsanız lütfen kaydolun</p>
+                    <button type="button" class="register-btn" onclick="showRegisterForm()">📝 Kayıt Ol</button>
+                    <p class="employee-notice">* Sadece çalışanlar için</p>
+                </div>
+            </div>
+
+            <!-- Register Form -->
+            <div class="register-form-container" id="register-form-container">
+                <form method="POST" action="/register" novalidate>
+                    {% if csrf_token is defined %}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label for="reg_username">Kullanıcı Adı</label>
+                        <input type="text" id="reg_username" name="username" placeholder="Kullanıcı adı belirleyin"
+                            required autocomplete="username">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reg_password">Şifre</label>
+                        <input type="password" id="reg_password" name="password"
+                            placeholder="Şifre belirleyin (en az 4 karakter)" required autocomplete="new-password"
+                            minlength="4">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reg_password2">Şifre Tekrar</label>
+                        <input type="password" id="reg_password2" name="password2" placeholder="Şifrenizi tekrar girin"
+                            required autocomplete="new-password" minlength="4">
+                    </div>
+
+                    <button type="submit" class="login-btn">✅ Kayıt Ol</button>
+
+                    <p class="employee-notice">* Sadece çalışanlar için</p>
+                </form>
+
+                <span class="back-to-login" onclick="showLoginForm()">← Giriş sayfasına dön</span>
+            </div>
+
+            <div class="login-footer">
+                <p>e-Mutabakat Pro v3.0 Web</p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function showRegisterForm() {
+            document.getElementById('login-form-container').classList.add('hidden');
+            document.getElementById('register-form-container').classList.add('active');
+            document.getElementById('header-icon').textContent = '📝';
+            document.getElementById('header-subtitle').textContent = 'Yeni hesap oluşturun';
+        }
+
+        function showLoginForm() {
+            document.getElementById('login-form-container').classList.remove('hidden');
+            document.getElementById('register-form-container').classList.remove('active');
+            document.getElementById('header-icon').textContent = '🔐';
+            document.getElementById('header-subtitle').textContent = 'Hesabınıza giriş yapın';
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,1414 @@
+"""
+KDV İade Listesi Web Raporu Oluşturucu
+İnteraktif düzenleme, GIB önizleme ve Excel export özellikli HTML rapor.
+"""
+
+import json
+import os
+import base64
+import io
+from datetime import datetime
+
+# PDF sayfa görüntüsü için
+try:
+    import pdfplumber
+    PDFPLUMBER_AVAILABLE = True
+except ImportError:
+    PDFPLUMBER_AVAILABLE = False
+
+
+def get_pdf_page_image_base64(pdf_path, page_num, resolution=150):
+    """
+    PDF sayfasını base64 PNG görüntüsüne çevir.
+    
+    Args:
+        pdf_path: PDF dosya yolu
+        page_num: Sayfa numarası (1-indexed)
+        resolution: Görüntü çözünürlüğü
+        
+    Returns:
+        str: Base64 encoded PNG veya None
+    """
+    if not PDFPLUMBER_AVAILABLE:
+        return None
+    
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            if page_num <= 0 or page_num > len(pdf.pages):
+                return None
+            
+            page = pdf.pages[page_num - 1]
+            img = page.to_image(resolution=resolution)
+            
+            # PNG olarak buffer'a kaydet
+            buffer = io.BytesIO()
+            img.original.save(buffer, format='PNG')
+            buffer.seek(0)
+            
+            # Base64'e çevir
+            img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            return img_base64
+    except Exception as e:
+        print(f"PDF sayfa görüntüsü oluşturulamadı: {e}")
+        return None
+
+
+def generate_kdv_web_report(invoices, output_path, gib_html_dir=None):
+    """
+    KDV iade listesi için interaktif web raporu oluştur.
+    
+    Args:
+        invoices: Fatura verilerinin listesi
+        output_path: HTML dosya yolu
+        gib_html_dir: GIB HTML dosyalarının bulunduğu dizin (opsiyonel)
+    """
+    
+    # PDF sayfalarını base64 görüntüye çevir
+    pdf_cache = {}  # PDF dosyalarını cache'le
+    for inv in invoices:
+        source_path = inv.get('source_path', '')
+        if source_path and '.pdf' in source_path.lower():
+            # PDF yolu ve sayfa numarasını ayıkla
+            if '#page' in source_path:
+                pdf_path = source_path.split('#page')[0]
+                page_num = int(source_path.split('#page')[1])
+            else:
+                pdf_path = source_path
+                page_num = inv.get('page_num', 1)
+            
+            # Görüntüyü oluştur (cache'den veya yeni)
+            cache_key = f"{pdf_path}#{page_num}"
+            if cache_key not in pdf_cache:
+                img_base64 = get_pdf_page_image_base64(pdf_path, page_num, resolution=200)
+                pdf_cache[cache_key] = img_base64
+            
+            inv['page_image'] = pdf_cache.get(cache_key, '')
+    
+    # JSON formatında veriyi hazırla
+    invoice_data = json.dumps(invoices, ensure_ascii=False, indent=2)
+
+    
+    html_content = f'''<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İndirilecek KDV Listesi - Düzenleyici</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; }}
+        
+        .header {{
+            background: linear-gradient(135deg, #2E74B5, #1a4a7a);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        .header h1 {{ font-size: 24px; }}
+        .header-buttons {{ display: flex; gap: 10px; }}
+        
+        .btn {{
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }}
+        .btn-primary {{ background: #28a745; color: white; }}
+        .btn-primary:hover {{ background: #218838; }}
+        .btn-danger {{ background: #dc3545; color: white; }}
+        .btn-danger:hover {{ background: #c82333; }}
+        .btn-info {{ background: #17a2b8; color: white; }}
+        .btn-info:hover {{ background: #138496; }}
+        .btn-secondary {{ background: #6c757d; color: white; }}
+        .btn-secondary:hover {{ background: #5a6268; }}
+        
+        /* Dropdown Menü */
+        .dropdown {{
+            position: relative;
+            display: inline-block;
+        }}
+        .dropdown-toggle {{
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }}
+        .dropdown-menu {{
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: white;
+            min-width: 200px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            border-radius: 8px;
+            z-index: 1000;
+            overflow: hidden;
+        }}
+        .dropdown.open .dropdown-menu {{
+            display: block;
+        }}
+        .dropdown-menu a {{
+            display: block;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }}
+        .dropdown-menu a:hover {{
+            background: #f0f7ff;
+            color: #2E74B5;
+        }}
+        .dropdown-menu a i {{
+            margin-right: 8px;
+        }}
+        
+        .container {{ padding: 20px 30px; }}
+        
+        .stats {{
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }}
+        .stat-card {{
+            background: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            flex: 1;
+        }}
+        .stat-card h3 {{ color: #666; font-size: 12px; margin-bottom: 5px; }}
+        .stat-card .value {{ font-size: 28px; font-weight: bold; color: #2E74B5; }}
+        
+        .table-container {{
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow-x: auto;
+            max-width: 100%;
+        }}
+        .table-container::-webkit-scrollbar {{
+            height: 10px;
+        }}
+        .table-container::-webkit-scrollbar-track {{
+            background: #f1f1f1;
+            border-radius: 5px;
+        }}
+        .table-container::-webkit-scrollbar-thumb {{
+            background: #2E74B5;
+            border-radius: 5px;
+        }}
+        .table-container::-webkit-scrollbar-thumb:hover {{
+            background: #1a4a7a;
+        }}
+        
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }}
+        th {{
+            background: #2E74B5;
+            color: white;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }}
+        td {{
+            padding: 10px 8px;
+            border-bottom: 1px solid #eee;
+        }}
+        tr:hover {{ background: #f8f9fa; }}
+        
+        .editable {{
+            cursor: pointer;
+            min-width: 60px;
+            padding: 4px;
+            border-radius: 3px;
+        }}
+        .editable:hover {{ background: #e3f2fd; }}
+        .editable:focus {{
+            outline: 2px solid #2E74B5;
+            background: white;
+        }}
+        
+        .actions {{ display: flex; gap: 5px; }}
+        .btn-sm {{
+            padding: 5px 10px;
+            font-size: 11px;
+            border-radius: 3px;
+        }}
+        
+        .num {{ text-align: right; font-family: 'Consolas', monospace; }}
+        
+        .modal {{
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }}
+        .modal.show {{ display: flex; }}
+        .modal-content {{
+            background: white;
+            border-radius: 10px;
+            max-width: 95vw;
+            max-height: 95vh;
+            overflow: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }}
+        .modal-header {{
+            background: #2E74B5;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        .modal-body {{ padding: 20px; }}
+        .close {{ font-size: 24px; cursor: pointer; }}
+        
+        /* Yan Panel (Fatura Önizleme) */
+        .sidebar-panel {{
+            display: none;
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 750px;
+            height: 100vh;
+            background: white;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.2);
+            z-index: 999;
+            overflow-y: auto;
+        }}
+        .sidebar-panel.show {{ display: block; }}
+        .sidebar-header {{
+            background: #2E74B5;
+            color: white;
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }}
+        .sidebar-header h3 {{ margin: 0; font-size: 14px; }}
+        .sidebar-body {{
+            padding: 0;
+            height: calc(100vh - 45px);
+        }}
+        .sidebar-body img {{
+            width: 100%;
+            border: 1px solid #ddd;
+            cursor: zoom-in;
+        }}
+        .sidebar-body iframe {{
+            width: 100%;
+            height: 100%;
+            border: none;
+        }}
+        
+        /* Sidebar açıkken tablo alanını daralt */
+        body.sidebar-open .container {{
+            margin-right: 760px;
+        }}
+        
+        .search-box {{
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 300px;
+            margin-bottom: 15px;
+        }}
+        
+        .toolbar {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }}
+        
+        .deleted {{ text-decoration: line-through; opacity: 0.5; background: #ffebee !important; }}
+        
+        /* Detay Satırı Stilleri */
+        .detail-row {{ display: none; background: #f8f9fa; }}
+        .detail-row.show {{ display: table-row; }}
+        .detail-row td {{ padding: 0 !important; }}
+        .detail-content {{
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            border-left: 4px solid #2E74B5;
+            margin: 5px 10px;
+            border-radius: 5px;
+        }}
+        .detail-content h4 {{
+            color: #2E74B5;
+            margin-bottom: 10px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .detail-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            background: white;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }}
+        .detail-table th {{
+            background: #34495e;
+            color: white;
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+        }}
+        .detail-table td {{
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }}
+        .detail-table tr:hover {{ background: #f0f7ff; }}
+        .detail-table .num {{ text-align: right; font-family: 'Consolas', monospace; }}
+        .detail-table tfoot td {{
+            background: #ecf0f1;
+            font-weight: bold;
+            border-top: 2px solid #2E74B5;
+        }}
+        .btn-warning {{ background: #f39c12; color: white; }}
+        .btn-warning:hover {{ background: #e67e22; }}
+        
+        @media print {{
+            .header-buttons, .actions, .toolbar, .sidebar-panel, .detail-row {{ display: none; }}
+            .header {{ background: #2E74B5 !important; -webkit-print-color-adjust: exact; }}
+            body.sidebar-open .container {{ margin-right: 0; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 İndirilecek KDV Listesi</h1>
+        <div class="header-buttons">
+            <button class="btn btn-info" onclick="showInstructions()">ℹ️ Yardım</button>
+            <button class="btn btn-secondary" onclick="undoDelete()">↩️ Geri Al</button>
+            <div class="dropdown" id="exportDropdown">
+                <button class="btn btn-primary dropdown-toggle" onclick="toggleDropdown()">📥 Excel'e Aktar ▼</button>
+                <div class="dropdown-menu">
+                    <a onclick="exportGibOzet()">📋 GİB Özet Liste (Fatura Bazlı)</a>
+                    <a onclick="exportGibKalemli()">📦 GİB Kalem Kalem (Satır Bazlı)</a>
+                    <hr style="margin: 5px 0; border-color: #eee;">
+                    <a onclick="exportToExcel()">📄 Standart Excel</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card">
+                <h3>TOPLAM FATURA</h3>
+                <div class="value" id="totalCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>TOPLAM KDV HARİÇ</h3>
+                <div class="value" id="totalTaxExcl">0,00 ₺</div>
+            </div>
+            <div class="stat-card">
+                <h3>TOPLAM KDV</h3>
+                <div class="value" id="totalTax">0,00 ₺</div>
+            </div>
+            <div class="stat-card">
+                <h3>TOPLAM İNDİRİLEN KDV</h3>
+                <div class="value" id="totalDeducted">0,00 ₺</div>
+            </div>
+        </div>
+        
+        <div class="toolbar">
+            <div>
+                <input type="text" class="search-box" placeholder="🔍 Ara (firma adı, fatura no...)" oninput="filterTable(this.value)">
+                <button class="btn btn-primary btn-sm" onclick="showAddInvoiceForm()" style="margin-left: 10px;">➕ Fatura Ekle</button>
+                <button class="btn btn-info btn-sm" onclick="showQRPasteForm()" style="margin-left: 5px;">📱 QR Yapıştır</button>
+            </div>
+            <div>
+                <span id="selectedCount">0</span> satır seçili
+                <button class="btn btn-danger btn-sm" onclick="deleteSelected()">🗑️ Seçilenleri Sil</button>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table id="kdvTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                        <th>Sıra</th>
+                        <th>Tarih</th>
+                        <th>Seri</th>
+                        <th>Sıra No</th>
+                        <th>Satıcı Ünvanı</th>
+                        <th>VKN/TCKN</th>
+                        <th>Mal/Hizmet Cinsi</th>
+                        <th>Miktar</th>
+                        <th class="num">KDV Hariç</th>
+                        <th class="num">KDV</th>
+                        <th class="num">Tevkifatsız KDV</th>
+                        <th class="num">2 No KDV</th>
+                        <th class="num">İndirilen KDV</th>
+                        <th>GGB No</th>
+                        <th>Dönem</th>
+                        <th>İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Invoice Preview Sidebar Panel -->
+    <div class="sidebar-panel" id="sidebarPanel">
+        <div class="sidebar-header">
+            <h3>📄 Fatura Önizleme</h3>
+            <span class="close" onclick="closeSidebar()">&times;</span>
+        </div>
+        <div class="sidebar-body" id="sidebarBody">
+            <p style="color: #666; text-align: center; padding: 20px;">Fatura seçilmedi</p>
+        </div>
+    </div>
+    
+    <!-- Invoice Preview Modal (XML faturalar için) -->
+    <div class="modal" id="invoiceModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Fatura Önizleme</h3>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="invoicePreview">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Instructions Modal -->
+    <div class="modal" id="helpModal">
+        <div class="modal-content" style="max-width:600px;">
+            <div class="modal-header">
+                <h3>Kullanım Kılavuzu</h3>
+                <span class="close" onclick="document.getElementById('helpModal').classList.remove('show')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h4>📝 Düzenleme</h4>
+                <p>Herhangi bir hücreye tıklayarak düzenleyebilirsiniz. Enter veya dışarı tıklayarak kaydedin.</p>
+                
+                <h4 style="margin-top:15px;">🗑️ Silme</h4>
+                <p>Satırın yanındaki "Sil" butonuna tıklayın. "Geri Al" ile son silmeyi geri alabilirsiniz.</p>
+                
+                <h4 style="margin-top:15px;">👁️ Fatura Önizleme</h4>
+                <p>"Fatura" butonuna tıklayarak GİB formatında faturayı görebilirsiniz.</p>
+                
+                <h4 style="margin-top:15px;">📥 Excel Export</h4>
+                <p>"Excel'e Aktar" butonu ile GİB formatında .xlsx dosyası indirebilirsiniz.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Invoice Modal -->
+    <div class="modal" id="addInvoiceModal">
+        <div class="modal-content" style="max-width:700px;">
+            <div class="modal-header" style="background: #28a745;">
+                <h3>➕ Yeni Fatura Ekle</h3>
+                <span class="close" onclick="document.getElementById('addInvoiceModal').classList.remove('show')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addInvoiceForm" onsubmit="addNewInvoice(event)">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label style="font-weight: bold; font-size: 12px;">Tarih (GG.AA.YYYY)</label>
+                            <input type="text" id="newTarih" placeholder="01.01.2025" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; font-size: 12px;">Fatura No</label>
+                            <input type="text" id="newFaturaNo" placeholder="ZGM2025000001473" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div style="grid-column: span 2;">
+                            <label style="font-weight: bold; font-size: 12px;">Satıcı Ünvanı</label>
+                            <input type="text" id="newUnvan" placeholder="ABC LTD. ŞTİ." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; font-size: 12px;">VKN/TCKN</label>
+                            <input type="text" id="newVkn" placeholder="1234567890" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; font-size: 12px;">KDV Dönemi</label>
+                            <input type="text" id="newDonem" placeholder="2025/01" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div style="grid-column: span 2;">
+                            <label style="font-weight: bold; font-size: 12px;">Mal/Hizmet Cinsi</label>
+                            <input type="text" id="newMalCinsi" placeholder="MAL/HİZMET" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; font-size: 12px;">Miktar</label>
+                            <input type="text" id="newMiktar" placeholder="1AD" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; font-size: 12px;">KDV Hariç Tutar (₺)</label>
+                            <input type="text" id="newKdvHaric" placeholder="10000.00" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; font-size: 12px;">KDV Tutarı (₺)</label>
+                            <input type="text" id="newKdv" placeholder="2000.00" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="font-weight: bold; font-size: 12px;">GGB Tescil No (İthalat için)</label>
+                            <input type="text" id="newGgb" placeholder="" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px; text-align: right;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('addInvoiceModal').classList.remove('show')">İptal</button>
+                        <button type="submit" class="btn btn-primary" style="margin-left: 10px;">Ekle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Paste Modal -->
+    <div class="modal" id="qrPasteModal">
+        <div class="modal-content" style="max-width:600px;">
+            <div class="modal-header" style="background: #17a2b8;">
+                <h3>📱 QR Kod Verisi Yapıştır</h3>
+                <span class="close" onclick="document.getElementById('qrPasteModal').classList.remove('show')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px; color: #666;">
+                    Telefonunuzla QR kodu okutun ve JSON verisini aşağıya yapıştırın:
+                </p>
+                <textarea id="qrJsonData" placeholder='Örnek: {{"vkntckn":"...", "tarih":"...", "no":"..."}}'
+                    style="width: 100%; height: 150px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 12px;"></textarea>
+                <div style="margin-top: 15px; text-align: right;">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('qrPasteModal').classList.remove('show')">İptal</button>
+                    <button type="button" class="btn btn-primary" style="margin-left: 10px;" onclick="parseQRData()">Fatura Ekle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initial data
+        let invoices = {invoice_data};
+        let deletedRows = [];
+        let selectedRows = new Set();
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {{
+            renderTable();
+            updateStats();
+        }});
+        
+        function renderTable() {{
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            invoices.forEach((inv, idx) => {{
+                if (inv._deleted) return; // Skip deleted
+                
+                const tr = document.createElement('tr');
+                tr.dataset.idx = idx;
+                
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="row-select" onchange="updateSelection()"></td>
+                    <td>${{idx + 1}}</td>
+                    <td contenteditable="true" class="editable" data-field="tarih">${{inv.tarih || ''}}</td>
+                    <td></td>
+                    <td contenteditable="true" class="editable" data-field="fatura_no">${{(inv.seri || '') + (inv.sira_no || '')}}</td>
+                    <td contenteditable="true" class="editable" data-field="satici_unvan">${{inv.satici_unvan || ''}}</td>
+                    <td contenteditable="true" class="editable" data-field="satici_vkn">${{inv.satici_vkn || ''}}</td>
+                    <td contenteditable="true" class="editable" data-field="mal_cinsi" title="${{inv.mal_cinsi || ''}}">${{truncate(inv.mal_cinsi, 30)}}</td>
+                    <td contenteditable="true" class="editable" data-field="miktar">${{inv.miktar || ''}}</td>
+                    <td contenteditable="true" class="editable num" data-field="kdv_haric_tutar">${{formatNumber(inv.kdv_haric_tutar)}}</td>
+                    <td contenteditable="true" class="editable num" data-field="kdv">${{formatNumber(inv.kdv)}}</td>
+                    <td contenteditable="true" class="editable num" data-field="tevkifat_kdv">${{formatNumber(inv.tevkifat_kdv)}}</td>
+                    <td contenteditable="true" class="editable num" data-field="iki_nolu_kdv">${{formatNumber(inv.iki_nolu_kdv)}}</td>
+                    <td contenteditable="true" class="editable num" data-field="toplam_indirilen_kdv">${{formatNumber(inv.toplam_indirilen_kdv)}}</td>
+                    <td contenteditable="true" class="editable" data-field="ggb_tescil_no">${{inv.ggb_tescil_no || ''}}</td>
+                    <td contenteditable="true" class="editable" data-field="kdv_donemi">${{inv.kdv_donemi || ''}}</td>
+                    <td class="actions">
+                        <button class="btn btn-info btn-sm" onclick="showInvoice(${{idx}})">Fatura</button>
+                        <button class="btn btn-warning btn-sm" onclick="toggleDetail(${{idx}})">Detay</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteRow(${{idx}})">Sil</button>
+                    </td>
+                `;
+                
+                // Add blur event for saving edits
+                tr.querySelectorAll('.editable').forEach(cell => {{
+                    cell.addEventListener('blur', function() {{
+                        const field = this.dataset.field;
+                        let value = this.textContent.trim();
+                        
+                        // Convert numeric fields
+                        if (['kdv_haric_tutar', 'kdv', 'tevkifat_kdv', 'iki_nolu_kdv', 'toplam_indirilen_kdv'].includes(field)) {{
+                            value = parseFloat(value.replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+                        }}
+                        
+                        invoices[idx][field] = value;
+                        updateStats();
+                    }});
+                }});
+                
+                tbody.appendChild(tr);
+                
+                // Detay satırı ekle
+                const detailRow = document.createElement('tr');
+                detailRow.className = 'detail-row';
+                detailRow.id = `detail-${{idx}}`;
+                detailRow.innerHTML = `<td colspan="17">${{renderDetailContent(inv, idx)}}</td>`;
+                tbody.appendChild(detailRow);
+            }});
+        }}
+        
+        // Detay içeriğini oluştur (GİB formatında kalem tablosu)
+        function renderDetailContent(inv, idx) {{
+            const kalemler = inv.kalemler || [];
+            
+            if (kalemler.length === 0) {{
+                return `
+                    <div class="detail-content">
+                        <h4>📋 Fatura Kalemleri</h4>
+                        <p style="color: #666; font-style: italic;">Bu fatura için kalem detayı bulunamadı.</p>
+                    </div>
+                `;
+            }}
+            
+            // Toplam hesapla
+            let toplamTutar = 0;
+            let toplamKdv = 0;
+            
+            let kalemRows = kalemler.map(kalem => {{
+                toplamTutar += kalem.tutar || 0;
+                toplamKdv += kalem.kdv_tutari || 0;
+                
+                return `
+                    <tr>
+                        <td style="text-align: center;">${{kalem.sira || '-'}}</td>
+                        <td>${{kalem.urun_adi || '-'}}</td>
+                        <td style="text-align: center;">${{kalem.miktar || 0}} ${{kalem.birim || 'AD'}}</td>
+                        <td class="num">${{formatNumber(kalem.birim_fiyat)}} ₺</td>
+                        <td style="text-align: center;">%${{kalem.kdv_orani || 0}}</td>
+                        <td class="num">${{formatNumber(kalem.kdv_tutari)}} ₺</td>
+                        <td class="num">${{formatNumber(kalem.tutar)}} ₺</td>
+                    </tr>
+                `;
+            }}).join('');
+            
+            return `
+                <div class="detail-content">
+                    <h4>📋 Fatura Kalemleri <span style="font-weight: normal; color: #666;">(Toplam ${{kalemler.length}} kalem)</span></h4>
+                    <table class="detail-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px; text-align: center;">Sıra No</th>
+                                <th>Mal / Hizmet Cinsi</th>
+                                <th style="width: 100px; text-align: center;">Miktar</th>
+                                <th style="width: 120px; text-align: right;">Birim Fiyat</th>
+                                <th style="width: 80px; text-align: center;">KDV Oranı</th>
+                                <th style="width: 120px; text-align: right;">KDV Tutarı</th>
+                                <th style="width: 130px; text-align: right;">Mal/Hizmet Bedeli</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${{kalemRows}}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="5" style="text-align: right;">TOPLAM:</td>
+                                <td class="num">${{formatNumber(toplamKdv)}} ₺</td>
+                                <td class="num">${{formatNumber(toplamTutar)}} ₺</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            `;
+        }}
+        
+        // Detay satırını aç/kapat
+        function toggleDetail(idx) {{
+            const detailRow = document.getElementById(`detail-${{idx}}`);
+            if (detailRow) {{
+                detailRow.classList.toggle('show');
+            }}
+        }}
+        
+        function truncate(str, len) {{
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }}
+        
+        function formatNumber(num) {{
+            if (num === undefined || num === null) return '0,00';
+            return parseFloat(num).toLocaleString('tr-TR', {{minimumFractionDigits: 2, maximumFractionDigits: 2}});
+        }}
+        
+        function updateStats() {{
+            const active = invoices.filter(i => !i._deleted);
+            document.getElementById('totalCount').textContent = active.length;
+            document.getElementById('totalTaxExcl').textContent = formatNumber(active.reduce((s, i) => s + (parseFloat(i.kdv_haric_tutar) || 0), 0)) + ' ₺';
+            document.getElementById('totalTax').textContent = formatNumber(active.reduce((s, i) => s + (parseFloat(i.kdv) || 0), 0)) + ' ₺';
+            document.getElementById('totalDeducted').textContent = formatNumber(active.reduce((s, i) => s + (parseFloat(i.toplam_indirilen_kdv) || 0), 0)) + ' ₺';
+        }}
+        
+        function deleteRow(idx) {{
+            invoices[idx]._deleted = true;
+            deletedRows.push(idx);
+            renderTable();
+            updateStats();
+        }}
+        
+        function undoDelete() {{
+            if (deletedRows.length > 0) {{
+                const idx = deletedRows.pop();
+                invoices[idx]._deleted = false;
+                renderTable();
+                updateStats();
+            }}
+        }}
+        
+        function showQRPasteForm() {{
+            document.getElementById('qrJsonData').value = '';
+            document.getElementById('qrPasteModal').classList.add('show');
+        }}
+        
+        function parseQRData() {{
+            const jsonText = document.getElementById('qrJsonData').value.trim();
+            
+            if (!jsonText) {{
+                alert('Lütfen QR verisi yapıştırın!');
+                return;
+            }}
+            
+            try {{
+                // Clean up the JSON (remove extra whitespace, newlines)
+                const cleanJson = jsonText.replace(/\\s+/g, ' ').replace(/,\\s*}}/g, '}}');
+                const qr = JSON.parse(cleanJson);
+                
+                // Parse invoice number
+                const faturaNo = qr.no || '';
+                const seriMatch = faturaNo.match(/^([A-Za-z]+)(.*)/);
+                const seri = seriMatch ? seriMatch[1].toUpperCase() : '';
+                const siraNo = seriMatch ? seriMatch[2] : faturaNo;
+                
+                // Parse date (format: YYYY-MM-DD to DD.MM.YYYY)
+                let tarih = qr.tarih || '';
+                if (tarih.includes('-')) {{
+                    const parts = tarih.split('-');
+                    tarih = parts[2] + '.' + parts[1] + '.' + parts[0];
+                }}
+                
+                // Calculate KDV period
+                const dateParts = tarih.split('.');
+                const kdvDonemi = dateParts.length === 3 ? dateParts[2] + '/' + dateParts[1] : '';
+                
+                // Parse amounts - handle both string and number types
+                let kdvMatrahRaw = qr['kdvmatrah(20)'] || qr.kdvmatrah || qr.malhizmettoplam || 0;
+                let kdvRaw = qr['hesaplanankdv(20)'] || qr.hesaplanankdv || 0;
+                
+                const kdvMatrah = typeof kdvMatrahRaw === 'string' 
+                    ? parseFloat(kdvMatrahRaw.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0
+                    : parseFloat(kdvMatrahRaw) || 0;
+                    
+                const kdv = typeof kdvRaw === 'string'
+                    ? parseFloat(kdvRaw.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0
+                    : parseFloat(kdvRaw) || 0;
+                
+                // Determine if this is a purchase (alış) or sale (satış)
+                // For KDV İade Listesi, we need purchase invoices where we are the buyer
+                const tip = qr.tip || '';
+                
+                // Create new invoice
+                const newInvoice = {{
+                    tarih: tarih,
+                    seri: seri,
+                    sira_no: siraNo,
+                    satici_unvan: 'QR verisi - VKN: ' + (qr.vkntckn || ''),
+                    satici_vkn: qr.vkntckn || '',
+                    buyer_vkn: qr.avkntckn || '',
+                    mal_cinsi: 'QR verisi (' + (qr.senaryo || 'FATURA') + ')',
+                    miktar: '1AD',
+                    kdv_haric_tutar: kdvMatrah,
+                    kdv: kdv,
+                    tevkifat_kdv: 0,
+                    iki_nolu_kdv: 0,
+                    toplam_indirilen_kdv: kdv,
+                    ggb_tescil_no: '',
+                    kdv_donemi: kdvDonemi,
+                    ettn: qr.ettn || '',
+                    source_type: 'QR',
+                    fatura_tipi: tip
+                }};
+                
+                invoices.push(newInvoice);
+                renderTable();
+                updateStats();
+                
+                document.getElementById('qrPasteModal').classList.remove('show');
+                alert('Fatura başarıyla eklendi!\\n\\nFatura No: ' + faturaNo + '\\nKDV: ' + kdv.toLocaleString('tr-TR') + ' ₺');
+                
+            }} catch (e) {{
+                alert('JSON parse hatası!\\n\\n' + e.message + '\\n\\nLütfen geçerli bir JSON yapıştırın.');
+            }}
+        }}
+        
+        function toggleSelectAll() {{
+            const checked = document.getElementById('selectAll').checked;
+            document.querySelectorAll('.row-select').forEach(cb => cb.checked = checked);
+            updateSelection();
+        }}
+        
+        function updateSelection() {{
+            selectedRows.clear();
+            document.querySelectorAll('.row-select:checked').forEach(cb => {{
+                selectedRows.add(parseInt(cb.closest('tr').dataset.idx));
+            }});
+            document.getElementById('selectedCount').textContent = selectedRows.size;
+        }}
+        
+        function deleteSelected() {{
+            if (selectedRows.size === 0) return;
+            if (!confirm(selectedRows.size + ' fatura silinecek. Emin misiniz?')) return;
+            
+            selectedRows.forEach(idx => {{
+                invoices[idx]._deleted = true;
+                deletedRows.push(idx);
+            }});
+            selectedRows.clear();
+            renderTable();
+            updateStats();
+        }}
+        
+        function filterTable(query) {{
+            query = query.toLowerCase();
+            document.querySelectorAll('#tableBody tr').forEach(tr => {{
+                const text = tr.textContent.toLowerCase();
+                tr.style.display = text.includes(query) ? '' : 'none';
+            }});
+        }}
+        
+         function showInvoice(idx) {{
+            const inv = invoices[idx];
+            const invNo = (inv.seri || '') + (inv.sira_no || '');
+            const sidebarBody = document.getElementById('sidebarBody');
+            
+            // Öncelik 1: Eğer orijinal fatura dosya yolu (source_path) varsa
+            if (inv.source_path) {{
+                let filePath = inv.source_path;
+                
+                // PDF dosyası için yan panelde iframe ile göster
+                if (filePath.toLowerCase().includes('.pdf')) {{
+                    let pageNum = inv.page_num || 1;
+                    if (filePath.includes('#page')) {{
+                        const parts = filePath.split('#page');
+                        filePath = parts[0];
+                        pageNum = parseInt(parts[1]) || pageNum;
+                    }}
+                    
+                    const fileName = filePath.split('\\\\').pop().split('/').pop();
+                    const url = `/uploads/${{fileName}}#page=${{pageNum}}`;
+                    
+                    sidebarBody.innerHTML = `<iframe src="${{url}}" title="Fatura Önizleme"></iframe>`;
+                    document.getElementById('sidebarPanel').classList.add('show');
+                    document.body.classList.add('sidebar-open');
+                    return;
+                }}
+                
+                // XML dosyası için - yan panelde iframe ile GIB formatında göster
+                if (filePath.toLowerCase().includes('.xml')) {{
+                    const fileName = filePath.split('\\\\').pop().split('/').pop();
+                    const url = `/uploads/xml_files/${{fileName}}`;
+                    
+                    sidebarBody.innerHTML = `<iframe src="${{url}}" title="Fatura Önizleme"></iframe>`;
+                    document.getElementById('sidebarPanel').classList.add('show');
+                    document.body.classList.add('sidebar-open');
+                    return;
+                }}
+            }}
+            
+            // Eğer GIB HTML dosyası varsa yan panelde göster
+            if (inv.gib_html_path) {{
+                // file:/// protokolü iframe'de çalışmayabilir, o yüzden inline gösterelim
+                sidebarBody.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #666;">
+                        <p>GIB HTML dosyası mevcut ancak iframe'de gösterilemiyor.</p>
+                        <button class="btn btn-info" onclick="window.open('${{inv.gib_html_path}}', '_blank')">Yeni Sekmede Aç</button>
+                    </div>
+                `;
+                document.getElementById('sidebarPanel').classList.add('show');
+                document.body.classList.add('sidebar-open');
+                return;
+            }}
+            
+            // NOT: Local file paths (file:///) tarayıcı güvenliği nedeniyle açılamaz
+            // Bu yüzden direkt olarak inline preview gösteriyoruz
+            
+            // PDF faturası için sayfa görüntüsü varsa yan panelde göster
+            if (inv.page_image) {{
+                const sidebarBody = document.getElementById('sidebarBody');
+                const pageNum = inv.page_num || '?';
+                const invNo = (inv.seri || '') + (inv.sira_no || '');
+                
+                sidebarBody.innerHTML = `
+                    <div style="background: #f0f7ff; padding: 8px; margin-bottom: 10px; border-radius: 5px; font-size: 12px;">
+                        <strong>Fatura:</strong> ${{invNo}}<br>
+                        <strong>Sayfa:</strong> ${{pageNum}}<br>
+                        <strong>Tarih:</strong> ${{inv.tarih || '-'}}<br>
+                        <strong>VKN:</strong> ${{inv.satici_vkn || '-'}}<br>
+                        <strong>KDV:</strong> ${{formatNumber(inv.kdv)}} ₺
+                        <div style="margin-top: 5px; color: #666; font-size: 11px;">💡 Büyütmek için resme tıklayın</div>
+                    </div>
+                    <img src="data:image/png;base64,${{inv.page_image}}" alt="Fatura Sayfası" 
+                         onclick="zoomImage(this.src)" 
+                         style="cursor: zoom-in;">
+                `;
+                
+                // Sidebar'ı aç ve body'ye class ekle
+                document.getElementById('sidebarPanel').classList.add('show');
+                document.body.classList.add('sidebar-open');
+                return;
+            }}
+            
+            // NOT: PDF dosyaları da file:// protokolü ile açılamaz
+            // Eğer PDF görüntüsü yoksa inline preview göster
+            
+            
+            // GIB HTML yoksa inline preview göster
+            const preview = document.getElementById('invoicePreview');
+            const total = (parseFloat(inv.kdv_haric_tutar) || 0) + (parseFloat(inv.kdv) || 0);
+            
+            // GIB e-Defter Görüntüleyici Formatı
+            preview.innerHTML = `
+                <div style="font-family: 'Times New Roman', serif; max-width: 800px; margin: 0 auto; background: white;">
+                    <!-- GIB Header -->
+                    <div style="background: linear-gradient(135deg, #1a5276, #2980b9); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 24px; font-weight: bold;">e-Belge</div>
+                            <div style="font-size: 12px; opacity: 0.9;">GİB e-Fatura Görüntüleyici</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 11px;">Gelir İdaresi Başkanlığı</div>
+                            <div style="font-size: 10px; opacity: 0.8;">T.C. Hazine ve Maliye Bakanlığı</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Fatura Tipi Banner -->
+                    <div style="background: #3498db; color: white; text-align: center; padding: 10px; font-size: 18px; font-weight: bold;">
+                        SATIŞ FATURASI
+                    </div>
+                    
+                    <!-- Ana İçerik -->
+                    <div style="padding: 20px; border: 1px solid #ddd;">
+                        <!-- Üst Bilgi Alanı -->
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #3498db;">
+                            <div style="flex: 1;">
+                                <!-- Logo Alanı -->
+                                <div style="width: 120px; height: 60px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; color: #999; font-size: 11px; margin-bottom: 10px;">
+                                    LOGO
+                                </div>
+                            </div>
+                            <div style="flex: 1; text-align: center;">
+                                <!-- Fatura Bilgileri -->
+                                <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                    <div style="font-size: 11px; color: #666;">FATURA NO</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: #2c3e50;">${{inv.seri}}${{inv.sira_no}}</div>
+                                    <div style="font-size: 11px; color: #666; margin-top: 5px;">TARİH</div>
+                                    <div style="font-size: 14px; font-weight: bold;">${{inv.tarih}}</div>
+                                </div>
+                            </div>
+                            <div style="flex: 1; text-align: right;">
+                                <!-- QR Kod Alanı -->
+                                <div style="width: 80px; height: 80px; border: 1px solid #ddd; display: inline-flex; align-items: center; justify-content: center; background: #fafafa;">
+                                    <div style="font-size: 10px; color: #999; text-align: center;">QR<br>KOD</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Taraf Bilgileri -->
+                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                            <!-- Satıcı -->
+                            <div style="flex: 1; border: 1px solid #3498db; border-radius: 5px; overflow: hidden;">
+                                <div style="background: #3498db; color: white; padding: 8px 12px; font-weight: bold; font-size: 12px;">
+                                    SATICI
+                                </div>
+                                <div style="padding: 12px;">
+                                    <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">${{inv.satici_unvan || '-'}}</div>
+                                    <table style="font-size: 12px; width: 100%;">
+                                        <tr><td style="color: #666; width: 80px;">VKN/TCKN:</td><td style="font-weight: bold;">${{inv.satici_vkn || '-'}}</td></tr>
+                                    </table>
+                                </div>
+                            </div>
+                            <!-- Alıcı -->
+                            <div style="flex: 1; border: 1px solid #27ae60; border-radius: 5px; overflow: hidden;">
+                                <div style="background: #27ae60; color: white; padding: 8px 12px; font-weight: bold; font-size: 12px;">
+                                    ALICI
+                                </div>
+                                <div style="padding: 12px;">
+                                    <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">-</div>
+                                    <table style="font-size: 12px; width: 100%;">
+                                        <tr><td style="color: #666; width: 80px;">VKN/TCKN:</td><td style="font-weight: bold;">-</td></tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Mal/Hizmet Tablosu -->
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;">
+                            <thead>
+                                <tr style="background: #34495e; color: white;">
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #2c3e50;">Sıra</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #2c3e50;">Mal/Hizmet</th>
+                                    <th style="padding: 10px; text-align: right; border: 1px solid #2c3e50;">Miktar</th>
+                                    <th style="padding: 10px; text-align: right; border: 1px solid #2c3e50;">Birim Fiyat</th>
+                                    <th style="padding: 10px; text-align: right; border: 1px solid #2c3e50;">KDV %</th>
+                                    <th style="padding: 10px; text-align: right; border: 1px solid #2c3e50;">KDV Tutarı</th>
+                                    <th style="padding: 10px; text-align: right; border: 1px solid #2c3e50;">Toplam</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 10px; border: 1px solid #ddd;">1</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd;">${{inv.mal_cinsi || '-'}}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${{inv.miktar || '-'}}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${{formatNumber(inv.kdv_haric_tutar)}}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">%20</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${{formatNumber(inv.kdv)}}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${{formatNumber(total)}}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <!-- Toplam Bölümü -->
+                        <div style="display: flex; justify-content: flex-end;">
+                            <table style="width: 300px; border-collapse: collapse; font-size: 13px;">
+                                <tr style="background: #f8f9fa;">
+                                    <td style="padding: 8px 12px; border: 1px solid #ddd;">Mal Hizmet Toplam Tutarı</td>
+                                    <td style="padding: 8px 12px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${{formatNumber(inv.kdv_haric_tutar)}} ₺</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 12px; border: 1px solid #ddd;">Hesaplanan KDV</td>
+                                    <td style="padding: 8px 12px; border: 1px solid #ddd; text-align: right;">${{formatNumber(inv.kdv)}} ₺</td>
+                                </tr>
+                                <tr style="background: #3498db; color: white;">
+                                    <td style="padding: 10px 12px; border: 1px solid #2980b9; font-weight: bold;">ÖDENECEK TUTAR</td>
+                                    <td style="padding: 10px 12px; border: 1px solid #2980b9; text-align: right; font-weight: bold; font-size: 16px;">${{formatNumber(total)}} ₺</td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <!-- Alt Bilgi -->
+                        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 11px; color: #666;">
+                            <div><strong>Dönem:</strong> ${{inv.kdv_donemi || '-'}}</div>
+                            <div style="margin-top: 5px;"><strong>Kaynak:</strong> ${{inv.source_type || 'e-Fatura XML'}} ${{inv.source_path ? '(' + inv.source_path.split('/').pop().split('\\\\').pop() + ')' : ''}}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- GIB Footer -->
+                    <div style="background: #2c3e50; color: white; padding: 10px 20px; font-size: 10px; text-align: center;">
+                        Bu belge 5070 sayılı Elektronik İmza Kanunu uyarınca elektronik imza ile imzalanmıştır.
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('invoiceModal').classList.add('show');
+        }}
+        
+        function closeModal() {{
+            document.getElementById('invoiceModal').classList.remove('show');
+        }}
+        
+        function closeSidebar() {{
+            document.getElementById('sidebarPanel').classList.remove('show');
+            document.body.classList.remove('sidebar-open');
+        }}
+        
+        function showInstructions() {{
+            document.getElementById('helpModal').classList.add('show');
+        }}
+        
+        function zoomImage(src) {{
+            // Büyük görüntü modal ile göster - ekrana sığar, resize edilebilir
+            const preview = document.getElementById('invoicePreview');
+            preview.innerHTML = `
+                <div style="text-align: center; padding: 10px;">
+                    <div style="resize: both; overflow: auto; display: inline-block; 
+                                border: 2px dashed #ccc; padding: 5px; 
+                                min-width: 400px; min-height: 300px;
+                                max-width: 95vw; max-height: 85vh;">
+                        <img src="${{src}}" style="width: 100%; height: auto; display: block;">
+                    </div>
+                    <div style="margin-top: 10px; color: #666; font-size: 12px;">
+                        📐 Köşelerden tutup çekerek boyutlandırabilirsiniz | ❌ Kapatmak için dışarı tıklayın
+                    </div>
+                </div>
+            `;
+            document.getElementById('invoiceModal').classList.add('show');
+        }}
+        
+        function showAddInvoiceForm() {{
+            document.getElementById('addInvoiceModal').classList.add('show');
+            // Clear form
+            document.getElementById('addInvoiceForm').reset();
+        }}
+        
+        function addNewInvoice(event) {{
+            event.preventDefault();
+            
+            const faturaNo = document.getElementById('newFaturaNo').value.trim();
+            // Parse seri and sira_no from full invoice number
+            const seriMatch = faturaNo.match(/^([A-Za-z]+)(.+)$/);
+            const seri = seriMatch ? seriMatch[1].toUpperCase() : '';
+            const sira_no = seriMatch ? seriMatch[2] : faturaNo;
+            
+            const kdvHaric = parseFloat(document.getElementById('newKdvHaric').value.replace(',', '.')) || 0;
+            const kdv = parseFloat(document.getElementById('newKdv').value.replace(',', '.')) || 0;
+            
+            const newInvoice = {{
+                tarih: document.getElementById('newTarih').value.trim(),
+                seri: seri,
+                sira_no: sira_no,
+                satici_unvan: document.getElementById('newUnvan').value.trim(),
+                satici_vkn: document.getElementById('newVkn').value.trim(),
+                mal_cinsi: document.getElementById('newMalCinsi').value.trim() || 'MAL/HİZMET',
+                miktar: document.getElementById('newMiktar').value.trim() || '1AD',
+                kdv_haric_tutar: kdvHaric,
+                kdv: kdv,
+                tevkifat_kdv: 0,
+                iki_nolu_kdv: 0,
+                toplam_indirilen_kdv: kdv,
+                ggb_tescil_no: document.getElementById('newGgb').value.trim(),
+                kdv_donemi: document.getElementById('newDonem').value.trim(),
+                source_type: 'Manuel Giriş'
+            }};
+            
+            // Add to invoices array
+            invoices.push(newInvoice);
+            
+            // Re-render and update stats
+            renderTable();
+            updateStats();
+            
+            // Close modal
+            document.getElementById('addInvoiceModal').classList.remove('show');
+            
+            alert('Fatura başarıyla eklendi!');
+        }}
+        
+        function exportToExcel() {{
+            const active = invoices.filter(i => !i._deleted);
+            
+            if (active.length === 0) {{
+                alert('Dışa aktarılacak fatura yok!');
+                return;
+            }}
+            
+            // Prepare data for Excel
+            const headers = [
+                'Sıra No', 'Alış Faturasının Tarihi', 'Alış Faturasının Serisi',
+                "Alış Faturasının Sıra No'su", 'Satıcının Adı-Soyadı / Ünvanı',
+                'Satıcının VKN/TCKN', 'Alınan Mal ve/veya Hizmetin Cinsi',
+                'Alınan Mal ve/veya Hizmetin Miktarı', 'KDV Hariç Tutarı', "KDV'si",
+                'Tevkifatlı Faturanın Tevkifata Tabi Olmayan KDV',
+                '2 Nolu Beyannamede Ödenen KDV', 'Toplam İndirilen KDV',
+                'GGB Tescil No', 'KDV Dönemi'
+            ];
+            
+            const rows = active.map((inv, idx) => [
+                idx + 1,
+                inv.tarih,
+                '',  // Seri boş
+                (inv.seri || '') + (inv.sira_no || ''),  // Tam fatura numarası
+                inv.satici_unvan,
+                inv.satici_vkn,
+                inv.mal_cinsi,
+                inv.miktar,
+                parseFloat(inv.kdv_haric_tutar) || 0,
+                parseFloat(inv.kdv) || 0,
+                parseFloat(inv.tevkifat_kdv) || 0,
+                parseFloat(inv.iki_nolu_kdv) || 0,
+                parseFloat(inv.toplam_indirilen_kdv) || 0,
+                inv.ggb_tescil_no,
+                inv.kdv_donemi
+            ]);
+            
+            // Add totals row
+            rows.push([
+                '', '', '', '', '', '', '', 'TOPLAM',
+                active.reduce((s, i) => s + (parseFloat(i.kdv_haric_tutar) || 0), 0),
+                active.reduce((s, i) => s + (parseFloat(i.kdv) || 0), 0),
+                active.reduce((s, i) => s + (parseFloat(i.tevkifat_kdv) || 0), 0),
+                active.reduce((s, i) => s + (parseFloat(i.iki_nolu_kdv) || 0), 0),
+                active.reduce((s, i) => s + (parseFloat(i.toplam_indirilen_kdv) || 0), 0),
+                '', ''
+            ]);
+            
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            
+            // Set column widths
+            ws['!cols'] = [
+                {{wch: 8}}, {{wch: 15}}, {{wch: 10}}, {{wch: 18}}, {{wch: 35}},
+                {{wch: 15}}, {{wch: 40}}, {{wch: 20}}, {{wch: 15}}, {{wch: 12}},
+                {{wch: 15}}, {{wch: 12}}, {{wch: 15}}, {{wch: 15}}, {{wch: 12}}
+            ];
+            
+            XLSX.utils.book_append_sheet(wb, ws, 'İndirilecek KDV Listesi');
+            
+            // Download
+            XLSX.writeFile(wb, 'Indirilecek_KDV_Listesi.xlsx');
+        }}
+        
+        // Dropdown menü toggle
+        function toggleDropdown() {{
+            document.getElementById('exportDropdown').classList.toggle('open');
+        }}
+        
+        // GİB Özet Liste Export
+        async function exportGibOzet() {{
+            const active = invoices.filter(i => !i._deleted);
+            
+            if (active.length === 0) {{
+                alert('Dışa aktarılacak fatura yok!');
+                return;
+            }}
+            
+            // Dropdown kapat
+            document.getElementById('exportDropdown').classList.remove('open');
+            
+            try {{
+                const response = await fetch('/api/export/gib-ozet', {{
+                    method: 'POST',
+                    headers: {{
+                        'Content-Type': 'application/json',
+                    }},
+                    body: JSON.stringify({{ invoices: active }})
+                }});
+                
+                if (!response.ok) {{
+                    const error = await response.json();
+                    throw new Error(error.error || 'Export hatası');
+                }}
+                
+                // Blob olarak al ve indir
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'gib_indirilecek_kdv_ozet.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                
+            }} catch (error) {{
+                alert('Export hatası: ' + error.message);
+            }}
+        }}
+        
+        // GİB Kalem Bazlı Export
+        async function exportGibKalemli() {{
+            const active = invoices.filter(i => !i._deleted);
+            
+            if (active.length === 0) {{
+                alert('Dışa aktarılacak fatura yok!');
+                return;
+            }}
+            
+            // Dropdown kapat
+            document.getElementById('exportDropdown').classList.remove('open');
+            
+            try {{
+                const response = await fetch('/api/export/gib-kalemli', {{
+                    method: 'POST',
+                    headers: {{
+                        'Content-Type': 'application/json',
+                    }},
+                    body: JSON.stringify({{ invoices: active }})
+                }});
+                
+                if (!response.ok) {{
+                    const error = await response.json();
+                    throw new Error(error.error || 'Export hatası');
+                }}
+                
+                // Blob olarak al ve indir
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'gib_indirilecek_kdv_kalemli.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                
+            }} catch (error) {{
+                alert('Export hatası: ' + error.message);
+            }}
+        }}
+        
+        // Close modal on outside click
+        window.onclick = function(e) {{
+            if (e.target.classList.contains('modal')) {{
+                e.target.classList.remove('show');
+            }}
+            // Dropdown dışına tıklanınca kapat
+            if (!e.target.closest('.dropdown')) {{
+                document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+            }}
+        }};
+    </script>
+</body>
+</html>
+'''
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    return output_path
+
+
+if __name__ == "__main__":
+    # Test
+    test_invoices = [
+        {
+            'tarih': '15.10.2025',
+            'seri': 'ZGM',
+            'sira_no': '2025000001473',
+            'satici_unvan': 'ABC LTD. ŞTİ.',
+            'satici_vkn': '1234567890',
+            'mal_cinsi': 'POLİETİLEN',
+            'miktar': '1000KG',
+            'kdv_haric_tutar': 50000.00,
+            'kdv': 10000.00,
+            'tevkifat_kdv': 0.0,
+            'iki_nolu_kdv': 0.0,
+            'toplam_indirilen_kdv': 10000.00,
+            'ggb_tescil_no': '',
+            'kdv_donemi': '2025/10'
+        }
+    ]
+    
+    output = generate_kdv_web_report(test_invoices, 'KDV_Listesi_Editor.html')
+    print(f"Rapor oluşturuldu: {output}")
