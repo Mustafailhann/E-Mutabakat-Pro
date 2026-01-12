@@ -1,0 +1,44 @@
+[Unit]
+Description=e-Mutabakat Pro - Flask Web Uygulaması
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=emutabakat
+Group=emutabakat
+WorkingDirectory=/opt/e-mutabakat-pro
+
+# Python ortamı
+Environment="PATH=/opt/e-mutabakat-pro/venv/bin"
+Environment="FLASK_ENV=production"
+Environment="PYTHONPATH=/opt/e-mutabakat-pro"
+
+# Gunicorn ile başlat (4 worker, timeout 120 saniye)
+ExecStart=/opt/e-mutabakat-pro/venv/bin/gunicorn \
+    --workers 4 \
+    --threads 2 \
+    --bind 127.0.0.1:5000 \
+    --timeout 120 \
+    --keep-alive 5 \
+    --access-logfile /opt/e-mutabakat-pro/logs/access.log \
+    --error-logfile /opt/e-mutabakat-pro/logs/error.log \
+    --capture-output \
+    web_app:app
+
+# Yeniden başlatma politikası
+Restart=always
+RestartSec=10
+
+# Kaynak limitleri
+LimitNOFILE=65536
+
+# Güvenlik ayarları
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/e-mutabakat-pro/logs /opt/e-mutabakat-pro/uploads /opt/e-mutabakat-pro/output /opt/e-mutabakat-pro
+
+[Install]
+WantedBy=multi-user.target

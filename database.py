@@ -58,7 +58,7 @@ def create_default_admin():
             ('admin', password_hash, 'admin')
         )
         conn.commit()
-        print("[OK] Default admin kullanicisi olusturuldu: admin / admin123")
+        print("[OK] Default admin kullanicisi olusturuldu")
     
     conn.close()
 

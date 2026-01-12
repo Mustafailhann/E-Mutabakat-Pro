@@ -238,7 +238,56 @@ def logout():
 @login_required
 def profile():
     """Profil sayfası"""
-    return render_template('profile.html')
+    from database import get_user_by_id
+    
+    # Kullanıcı bilgilerini al
+    user_data = get_user_by_id(current_user.id)
+    created_at = user_data['created_at'] if user_data else 'Bilinmiyor'
+    last_login = user_data['last_login'] if user_data and user_data['last_login'] else 'Hiç'
+    
+    # Aktivite loglarını al
+    activities = []
+    session_count = 0
+    activity_count = 0
+    
+    if audit_logger:
+        # Bu kullanıcıya ait aktiviteleri filtrele
+        all_logs = audit_logger.get_recent_logins(limit=100)
+        for log in all_logs:
+            if log.get('username') == current_user.username:
+                # Tarih formatını düzenle
+                timestamp = log.get('timestamp', '')
+                if timestamp:
+                    try:
+                        dt = datetime.fromisoformat(timestamp)
+                        timestamp = dt.strftime('%d.%m.%Y %H:%M')
+                    except:
+                        pass
+                
+                activity_type = 'login' if log.get('event') == 'LOGIN_SUCCESS' else 'logout'
+                if 'PASSWORD' in log.get('event', ''):
+                    activity_type = 'password'
+                
+                activities.append({
+                    'event': log.get('event'),
+                    'timestamp': timestamp,
+                    'ip': log.get('ip', 'Bilinmiyor'),
+                    'type': activity_type
+                })
+                
+                if log.get('event') == 'LOGIN_SUCCESS':
+                    session_count += 1
+                activity_count += 1
+        
+        # Son 10 aktiviteyi göster
+        activities = activities[:10]
+    
+    return render_template('profile.html', 
+                          activities=activities,
+                          session_count=session_count,
+                          activity_count=activity_count,
+                          created_at=created_at,
+                          last_login=last_login)
 
 
 @app.route('/change-password', methods=['POST'])
@@ -280,7 +329,58 @@ def change_password():
 def admin_panel():
     """Admin paneli"""
     users = get_all_users()
-    return render_template('admin.html', users=users, message=request.args.get('message'), error=request.args.get('error'))
+    
+    # Tüm kullanıcı aktivitelerini al
+    all_activities = []
+    if audit_logger:
+        # Giriş/Çıkış logları
+        login_logs = audit_logger.get_recent_logins(limit=50)
+        for log in login_logs:
+            timestamp = log.get('timestamp', '')
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    timestamp = dt.strftime('%d.%m.%Y %H:%M:%S')
+                except:
+                    pass
+            
+            all_activities.append({
+                'event': log.get('event'),
+                'username': log.get('username'),
+                'timestamp': timestamp,
+                'ip': log.get('ip') or log.get('ip_address', 'Bilinmiyor'),
+                'user_agent': log.get('user_agent', '')[:50] if log.get('user_agent') else ''
+            })
+        
+        # Güvenlik logları
+        security_logs = audit_logger.get_failed_logins(limit=20)
+        for log in security_logs:
+            timestamp = log.get('timestamp', '')
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    timestamp = dt.strftime('%d.%m.%Y %H:%M:%S')
+                except:
+                    pass
+            
+            all_activities.append({
+                'event': log.get('event'),
+                'username': log.get('username'),
+                'timestamp': timestamp,
+                'ip': log.get('ip') or log.get('ip_address', 'Bilinmiyor'),
+                'reason': log.get('reason', ''),
+                'locked': log.get('locked', False)
+            })
+        
+        # Tarihe göre sırala (en yeni başta)
+        all_activities.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        all_activities = all_activities[:30]  # Son 30 aktivite
+    
+    return render_template('admin.html', 
+                          users=users, 
+                          activities=all_activities,
+                          message=request.args.get('message'), 
+                          error=request.args.get('error'))
 
 
 @app.route('/admin/add-user', methods=['POST'])
@@ -791,7 +891,7 @@ if __name__ == '__main__':
     print("\n" + "="*50)
     print("  e-Mutabakat Pro - Web Uygulaması")
     print("  http://127.0.0.1:5000")
-    print("  Default: admin / admin123")
+    print("  Giriş için IT yöneticinize başvurun")
     print("="*50 + "\n")
     
     # Tarayıcıyı otomatik aç (1 saniye gecikmeyle)

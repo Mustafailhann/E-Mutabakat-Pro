@@ -1,0 +1,36 @@
+# e-Mutabakat Pro - Python Bağımlılıkları
+# Debian/Ubuntu Server Kurulumu için
+
+# Web Framework
+flask>=2.3.0
+flask-login>=0.6.2
+werkzeug>=2.3.0
+
+# Production WSGI Servers
+gunicorn>=21.0.0
+waitress>=2.1.0
+
+# Excel İşlemleri
+openpyxl>=3.1.0
+
+# XML/XSLT İşlemleri
+lxml>=4.9.0
+
+# PDF İşlemleri
+pdfplumber>=0.9.0
+Pillow>=10.0.0
+
+# QR Kod
+qrcode>=7.4.0
+
+# Arşiv İşlemleri
+rarfile>=4.0
+
+# HTTP İstekleri
+requests>=2.31.0
+
+# Tarih İşlemleri
+python-dateutil>=2.8.0
+
+# Güvenlik
+bcrypt>=4.0.0

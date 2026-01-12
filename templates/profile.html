@@ -8,6 +8,366 @@
 
     <link rel="stylesheet" href="/static/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        .profile-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .profile-header-card {
+            background: linear-gradient(135deg, #2E74B5 0%, #1a5a9a 50%, #0d3a66 100%);
+            border-radius: 20px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(46, 116, 181, 0.3);
+        }
+
+        .profile-header-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -30%;
+            width: 100%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
+        }
+
+        .profile-header-content {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .profile-avatar-large {
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .profile-info-main h1 {
+            color: #fff;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .profile-role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 500;
+            backdrop-filter: blur(5px);
+        }
+
+        .profile-role-badge.admin {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.3) 0%, rgba(220, 53, 69, 0.2) 100%);
+            border: 1px solid rgba(255, 107, 107, 0.5);
+        }
+
+        .profile-role-badge.user {
+            background: linear-gradient(135deg, rgba(107, 207, 127, 0.3) 0%, rgba(40, 167, 69, 0.2) 100%);
+            border: 1px solid rgba(107, 207, 127, 0.5);
+        }
+
+        .profile-stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+
+        .profile-stat {
+            text-align: center;
+        }
+
+        .profile-stat-value {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .profile-stat-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .profile-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .profile-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .profile-header-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .profile-stats {
+                justify-content: center;
+            }
+        }
+
+        .profile-card {
+            background: #fff;
+            border: 1px solid rgba(46, 116, 181, 0.2);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .profile-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(46, 116, 181, 0.15);
+        }
+
+        .profile-card-header {
+            background: linear-gradient(135deg, rgba(46, 116, 181, 0.1) 0%, rgba(26, 90, 154, 0.05) 100%);
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid rgba(46, 116, 181, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .profile-card-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .profile-card-icon {
+            font-size: 1.5rem;
+        }
+
+        .profile-card-body {
+            padding: 1.5rem;
+        }
+
+        /* Info Rows */
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(46, 116, 181, 0.1);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-value {
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        /* Password Form */
+        .password-form .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .password-form .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .password-form .form-group input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: #f8fafc;
+            border: 2px solid rgba(46, 116, 181, 0.15);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .password-form .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(46, 116, 181, 0.1);
+        }
+
+        .password-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #2E74B5 0%, #1a5a9a 100%);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .password-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(46, 116, 181, 0.35);
+        }
+
+        /* Activity Log */
+        .activity-card {
+            grid-column: 1 / -1;
+        }
+
+        .activity-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+        }
+
+        .activity-item:hover {
+            background: rgba(46, 116, 181, 0.08);
+        }
+
+        .activity-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.login {
+            background: linear-gradient(135deg, rgba(40, 167, 69, 0.15) 0%, rgba(40, 167, 69, 0.1) 100%);
+        }
+
+        .activity-icon.logout {
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 193, 7, 0.1) 100%);
+        }
+
+        .activity-icon.password {
+            background: linear-gradient(135deg, rgba(46, 116, 181, 0.15) 0%, rgba(46, 116, 181, 0.1) 100%);
+        }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .activity-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 1rem;
+        }
+
+        .activity-empty {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        /* Messages */
+        .alert-message {
+            padding: 1rem 1.25rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.95rem;
+        }
+
+        .alert-message.success {
+            background: rgba(40, 167, 69, 0.1);
+            border: 1px solid rgba(40, 167, 69, 0.3);
+            color: #28a745;
+        }
+
+        .alert-message.error {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            color: #dc3545;
+        }
+
+        .back-home-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+        }
+
+        .back-home-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-3px);
+        }
+    </style>
 </head>
 
 <body>
@@ -38,74 +398,152 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <div class="profile-container">
 
-            <!-- Profile Card -->
-            <section class="card profile-section">
-                <div class="card-header">
-                    <h2>👤 Profil Bilgileri</h2>
-                    <a href="/" class="btn btn-small" style="text-decoration: none;">← Ana Sayfa</a>
-                </div>
+                <!-- Profile Header -->
+                <div class="profile-header-card">
+                    <a href="/" class="back-home-btn">← Ana Sayfa</a>
 
-                <div class="card-body">
-                    <div class="profile-info">
-                        <div class="profile-avatar">
-                            👤
-                        </div>
-                        <div class="profile-details">
-                            <h3>{{ current_user.username }}</h3>
-                            <p>{{ current_user.role|capitalize }}</p>
+                    <div class="profile-header-content">
+                        <div class="profile-avatar-large">👤</div>
+                        <div class="profile-info-main">
+                            <h1>{{ current_user.username }}</h1>
+                            <span class="profile-role-badge {{ current_user.role }}">
+                                {% if current_user.role == 'admin' %}⚙️ Yönetici{% else %}👤 Kullanıcı{% endif %}
+                            </span>
+
+                            <div class="profile-stats">
+                                <div class="profile-stat">
+                                    <div class="profile-stat-value">{{ session_count|default(0) }}</div>
+                                    <div class="profile-stat-label">Oturum</div>
+                                </div>
+                                <div class="profile-stat">
+                                    <div class="profile-stat-value">{{ activity_count|default(0) }}</div>
+                                    <div class="profile-stat-label">İşlem</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- Password Change Card -->
-            <section class="card password-section">
-                <div class="card-header">
-                    <h2>🔐 Şifre Değiştir</h2>
+                <!-- Messages -->
+                {% if error is defined and error %}
+                <div class="alert-message error">
+                    <span>⚠️</span>
+                    <span>{{ error }}</span>
                 </div>
+                {% endif %}
 
-                <div class="card-body">
-                    {% if error is defined and error %}
-                    <div class="error-message">
-                        <span>⚠️</span>
-                        <span>{{ error }}</span>
-                    </div>
-                    {% endif %}
-
-                    {% if success is defined and success %}
-                    <div class="success-message">
-                        <span>✅</span>
-                        <span>{{ success }}</span>
-                    </div>
-                    {% endif %}
-
-                    <form method="POST" action="/change-password">
-                        <div class="form-group">
-                            <label for="current_password">Mevcut Şifre</label>
-                            <input type="password" id="current_password" name="current_password"
-                                placeholder="Mevcut şifrenizi girin" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="new_password">Yeni Şifre</label>
-                            <input type="password" id="new_password" name="new_password"
-                                placeholder="Yeni şifre (en az 4 karakter)" required minlength="4">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="confirm_password">Yeni Şifre (Tekrar)</label>
-                            <input type="password" id="confirm_password" name="confirm_password"
-                                placeholder="Yeni şifrenizi tekrar girin" required minlength="4">
-                        </div>
-
-                        <button type="submit" class="btn btn-primary" style="width: 100%;">
-                            🔐 Şifreyi Değiştir
-                        </button>
-                    </form>
+                {% if success is defined and success %}
+                <div class="alert-message success">
+                    <span>✅</span>
+                    <span>{{ success }}</span>
                 </div>
-            </section>
+                {% endif %}
 
+                <div class="profile-grid">
+
+                    <!-- Account Info -->
+                    <div class="profile-card">
+                        <div class="profile-card-header">
+                            <span class="profile-card-icon">📋</span>
+                            <h3>Hesap Bilgileri</h3>
+                        </div>
+                        <div class="profile-card-body">
+                            <div class="info-row">
+                                <span class="info-label">👤 Kullanıcı Adı</span>
+                                <span class="info-value">{{ current_user.username }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">🔑 Rol</span>
+                                <span class="info-value">{{ current_user.role|capitalize }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">📅 Kayıt Tarihi</span>
+                                <span class="info-value">{{ created_at|default('Bilinmiyor') }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">🕐 Son Giriş</span>
+                                <span class="info-value">{{ last_login|default('Bilinmiyor') }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Password Change -->
+                    <div class="profile-card">
+                        <div class="profile-card-header">
+                            <span class="profile-card-icon">🔐</span>
+                            <h3>Şifre Değiştir</h3>
+                        </div>
+                        <div class="profile-card-body">
+                            <form method="POST" action="/change-password" class="password-form">
+                                <div class="form-group">
+                                    <label for="current_password">Mevcut Şifre</label>
+                                    <input type="password" id="current_password" name="current_password"
+                                        placeholder="••••••••" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="new_password">Yeni Şifre</label>
+                                    <input type="password" id="new_password" name="new_password"
+                                        placeholder="En az 4 karakter" required minlength="4">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="confirm_password">Yeni Şifre (Tekrar)</label>
+                                    <input type="password" id="confirm_password" name="confirm_password"
+                                        placeholder="••••••••" required minlength="4">
+                                </div>
+
+                                <button type="submit" class="password-btn">
+                                    🔐 Şifreyi Değiştir
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Activity Log -->
+                    <div class="profile-card activity-card">
+                        <div class="profile-card-header">
+                            <span class="profile-card-icon">📊</span>
+                            <h3>Son Aktiviteler</h3>
+                        </div>
+                        <div class="profile-card-body">
+                            <div class="activity-list">
+                                {% if activities %}
+                                {% for activity in activities %}
+                                <div class="activity-item">
+                                    <div class="activity-icon {{ activity.type }}">
+                                        {% if activity.event == 'LOGIN_SUCCESS' %}🔓
+                                        {% elif activity.event == 'LOGOUT' %}🔒
+                                        {% elif activity.event == 'PASSWORD_CHANGE_SUCCESS' %}🔑
+                                        {% else %}📌{% endif %}
+                                    </div>
+                                    <div class="activity-content">
+                                        <div class="activity-title">
+                                            {% if activity.event == 'LOGIN_SUCCESS' %}Giriş yapıldı
+                                            {% elif activity.event == 'LOGOUT' %}Çıkış yapıldı
+                                            {% elif activity.event == 'PASSWORD_CHANGE_SUCCESS' %}Şifre değiştirildi
+                                            {% else %}{{ activity.event }}{% endif %}
+                                        </div>
+                                        <div class="activity-meta">
+                                            <span>📅 {{ activity.timestamp }}</span>
+                                            <span>🌐 {{ activity.ip }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                {% else %}
+                                <div class="activity-empty">
+                                    <p>📭 Henüz aktivite kaydı bulunmuyor</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
         </main>
 
         <!-- Footer -->
@@ -113,94 +551,6 @@
             <p>Designed by AI Agent • v3.0 Web Edition</p>
         </footer>
     </div>
-
-    <style>
-        .profile-info {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            padding: 1rem 0;
-        }
-
-        .profile-avatar {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #2E74B5 0%, #4a9fd8 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.5rem;
-            color: white;
-            box-shadow: 0 4px 15px rgba(46, 116, 181, 0.3);
-        }
-
-        .profile-details h3 {
-            font-size: 1.5rem;
-            color: var(--text-primary);
-            margin-bottom: 0.25rem;
-        }
-
-        .profile-details p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-        }
-
-        .password-section .form-group {
-            margin-bottom: 1.25rem;
-        }
-
-        .password-section .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
-
-        .password-section .form-group input {
-            width: 100%;
-            padding: 0.875rem 1rem;
-            background: #f8fafc;
-            border: 1px solid rgba(46, 116, 181, 0.2);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .password-section .form-group input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(46, 116, 181, 0.15);
-        }
-
-        .error-message {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            color: #dc2626;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .success-message {
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: #16a34a;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-    </style>
 </body>
 
 </html>

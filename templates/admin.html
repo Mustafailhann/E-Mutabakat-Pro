@@ -11,7 +11,8 @@
 
     <style>
         .admin-container {
-            max-width: 1400px;
+            max-width: 1800px;
+            width: 95%;
             margin: 0 auto;
             padding: 2rem;
         }
@@ -19,9 +20,9 @@
         /* Stats Cards */
         .stats-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-bottom: 2.5rem;
         }
 
         .stat-card {
@@ -29,7 +30,7 @@
             background: linear-gradient(135deg, rgba(46, 116, 181, 0.15) 0%, rgba(26, 90, 154, 0.05) 100%);
             border: 1px solid rgba(46, 116, 181, 0.3);
             border-radius: var(--border-radius);
-            padding: 2rem 1.5rem;
+            padding: 2.5rem 2rem;
             text-align: center;
             overflow: hidden;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -71,13 +72,13 @@
         }
 
         .stat-value {
-            font-size: 2.5rem;
+            font-size: 3.5rem;
             font-weight: 700;
             background: linear-gradient(135deg, #4a8fd4 0%, #2E74B5 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
             transition: transform 0.3s ease;
         }
 
@@ -96,8 +97,8 @@
         /* Admin Grid */
         .admin-grid {
             display: grid;
-            grid-template-columns: 1fr 420px;
-            gap: 1.5rem;
+            grid-template-columns: 1fr 450px;
+            gap: 2rem;
             align-items: start;
         }
 
@@ -542,8 +543,111 @@
                 </div>
 
             </div>
+
+            <!-- Activity Log Section -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header"
+                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <h2>📊 Kullanıcı Aktiviteleri</h2>
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <input type="text" id="activitySearch" placeholder="🔍 Kullanıcı ara..." style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); border-radius: 8px; 
+                                   font-size: 0.9rem; min-width: 200px; background: rgba(255,255,255,0.9);"
+                            onkeyup="filterActivities()">
+                        <select id="eventFilter"
+                            style="padding: 0.5rem 1rem; border: 2px solid var(--border-color); 
+                                border-radius: 8px; font-size: 0.9rem; background: rgba(255,255,255,0.9); cursor: pointer;"
+                            onchange="filterActivities()">
+                            <option value="">Tüm İşlemler</option>
+                            <option value="LOGIN_SUCCESS">🔓 Girişler</option>
+                            <option value="LOGOUT">🔒 Çıkışlar</option>
+                            <option value="LOGIN_FAILURE">⚠️ Başarısız</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
+                    {% if activities %}
+                    <table class="users-table" id="activityTable" style="table-layout: fixed; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 160px;">Tarih</th>
+                                <th style="width: 130px;">Kullanıcı</th>
+                                <th style="width: 130px;">İşlem</th>
+                                <th style="width: 130px;">IP Adresi</th>
+                                <th>Detay</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityTableBody">
+                            {% for activity in activities %}
+                            <tr data-event="{{ activity.event }}">
+                                <td style="font-family: monospace; font-size: 0.85rem;">{{ activity.timestamp }}</td>
+                                <td><strong>{{ activity.username }}</strong></td>
+                                <td data-event="{{ activity.event }}">
+                                    {% if activity.event == 'LOGIN_SUCCESS' %}
+                                    <span class="role-badge user"
+                                        style="background: linear-gradient(135deg, rgba(40,167,69,0.15) 0%, rgba(40,167,69,0.1) 100%); color: #28a745;">
+                                        🔓 Giriş
+                                    </span>
+                                    {% elif activity.event == 'LOGOUT' %}
+                                    <span class="role-badge"
+                                        style="background: linear-gradient(135deg, rgba(255,193,7,0.15) 0%, rgba(255,193,7,0.1) 100%); color: #ffc107; border: 1px solid rgba(255,193,7,0.3);">
+                                        🔒 Çıkış
+                                    </span>
+                                    {% elif activity.event == 'LOGIN_FAILURE' %}
+                                    <span class="role-badge admin"
+                                        style="background: linear-gradient(135deg, rgba(220,53,69,0.15) 0%, rgba(220,53,69,0.1) 100%); color: #dc3545;">
+                                        ⚠️ Başarısız
+                                    </span>
+                                    {% elif activity.event == 'RATE_LIMIT_EXCEEDED' %}
+                                    <span class="role-badge admin">
+                                        🚫 Kilitlendi
+                                    </span>
+                                    {% else %}
+                                    <span class="role-badge">{{ activity.event }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="font-family: monospace; font-size: 0.85rem;">{{ activity.ip }}</td>
+                                <td style="font-size: 0.85rem; color: var(--text-muted);">
+                                    {% if activity.reason %}
+                                    {{ activity.reason }}
+                                    {% if activity.locked %}<span style="color: #dc3545;">(Hesap kilitlendi)</span>{%
+                                    endif %}
+                                    {% elif activity.user_agent %}
+                                    {{ activity.user_agent }}...
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="no-users" style="padding: 2rem;">
+                        📭 Henüz aktivite kaydı bulunmuyor
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
+
+    <script>
+        function filterActivities() {
+            const searchTerm = document.getElementById('activitySearch').value.toLowerCase();
+            const eventFilter = document.getElementById('eventFilter').value;
+            const rows = document.querySelectorAll('#activityTableBody tr');
+
+            rows.forEach(row => {
+                const username = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                const eventType = row.getAttribute('data-event') || '';
+
+                const matchesSearch = username.includes(searchTerm);
+                const matchesEvent = !eventFilter || eventType === eventFilter;
+
+                row.style.display = (matchesSearch && matchesEvent) ? '' : 'none';
+            });
+        }
+    </script>
 </body>
 
 </html>
